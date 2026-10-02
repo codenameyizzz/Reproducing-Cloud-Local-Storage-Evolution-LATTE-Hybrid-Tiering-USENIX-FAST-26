@@ -39,7 +39,7 @@
     \textbf{Yizreel Schwartz Sipahutar}\\
     \textit{Department of Informatics, Institut Teknologi Del}\\
     Laguboti, Toba, North Sumatra, Indonesia\\
-    \texttt{legobatman201003@gmail.com}
+    \texttt{yizreelschwartz180304@gmail.com}
 }
 
 \date{\today}
@@ -96,7 +96,7 @@ Cloud service providers initially relied on standard kernel storage drivers (Vir
 \centering
 \caption{Systematic comparison across the four generations of cloud local storage paradigms~\cite{yang2026here}.}
 \label{tab:comparison}
-\small
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Metric / Feature} & \textbf{ESPRESSO (2017)} & \textbf{DOPPIO (2019)} & \textbf{RISTRETTO (2023)} & \textbf{Q-LATTE (Proposed)} \\
@@ -111,7 +111,8 @@ Elasticity (LDL\_2) & Fixed SSD Capacity & Fixed SSD Capacity & Fixed SSD Capaci
 Multi-Tenant QoS & None (Static Partition) & Static Hardware VF & Static Hardware VF & \textbf{Dynamic Token-Bucket QoS} \\
 Reproducibility on Commodity HW & High & Low (Custom ASIC) & Low (Custom ASIC/SoC) & \textbf{100\% Open-Source} \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table*}
 
 Table~\ref{tab:comparison} summarizes the trade-offs across ESPRESSO, DOPPIO, RISTRETTO, and Q-LATTE. While RISTRETTO conquered the processing overhead by offloading NVMe virtualization to an on-board ASIC and cloud management to an ARM Cortex-A72 SoC, it remains constrained by physical device boundaries.
@@ -287,8 +288,8 @@ Evaluation is conducted across three complementary tiers:
 \centering
 \caption{Consolidated benchmark evaluation matrix comparing pure local flash, cloud EBS, and hybrid tiers.}
 \label{tab:results}
-\small
-\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lcccccc}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccc}
 \toprule
 \textbf{System / Architecture} & \textbf{Max Read IOPS} & \textbf{Max Write IOPS (w/ GC)} & \textbf{Read Throughput} & \textbf{P99.9 Tail Latency} & \textbf{MySQL QPS} & \textbf{Relative TCO} \\
 \midrule
@@ -297,7 +298,8 @@ Remote EBS (via NVMe-oF) & 320K & 180K & 4.1 GB/s & $2,100\,\mu\text{s}$ & 9,800
 Replicated LATTE (FAST '26) & 740K & 460K & 8.9 GB/s & $1,180\,\mu\text{s}$ (Spike) & 19,100 & $1.4\times$ \\
 \textbf{Q-LATTE (This Work)} & \textbf{810K} & \textbf{520K} & \textbf{8.9 GB/s} & $\mathbf{345\,\mu\text{s}}$ \textbf{(Isolated)} & \textbf{23,800} & $\mathbf{1.2\times}$ \\
 \bottomrule
-\end{tabular*}
+\end{tabular}%
+}
 \end{table*}
 
 \subsection{Microbenchmark Performance}
