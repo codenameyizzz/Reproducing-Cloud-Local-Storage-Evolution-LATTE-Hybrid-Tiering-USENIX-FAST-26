@@ -1,0 +1,49 @@
+{
+    "@context": "https://w3id.org/ro/crate/1.1/context",
+    "@graph": [
+        {
+            "@id": "./",
+            "@type": "Dataset",
+            "actionApplication": [
+                {
+                    "@id": "#ChameleonJupyterLab"
+                }
+            ],
+            "author": [
+                {
+                    "@id": "#author_0"
+                }
+            ],
+            "datePublished": "2026-10-02T05:12:00+00:00",
+            "description": "This artifact reproduces the core findings of the USENIX FAST '26 paper 'Here, There and Everywhere: The Past, the Present and the Future of Local Storage in Cloud' by Alibaba Group and Shanghai Jiao Tong University. It evaluates NVMe storage performance across queue depths, hybrid local-cloud tiering (LATTE) with S3-FIFO caching and Linear-SVM dispatching, and introduces Q-LATTE to resolve multi-tenant QoS interference.",
+            "disambiguatingDescription": "End-to-end reproducible experiment evaluating cloud local storage evolution, LATTE hybrid tiering, and multi-tenant QoS.",
+            "keywords": "storage,reproducible research,experiment pattern,experiment",
+            "name": "Reproducing Cloud Local Storage Evolution & LATTE Hybrid Tiering (USENIX FAST '26)"
+        },
+        {
+            "@id": "trovi.json",
+            "@type": "CreativeWork",
+            "about": {
+                "@id": "./"
+            },
+            "conformsTo": {
+                "@id": "https://w3id.org/ro/crate/1.1"
+            }
+        },
+        {
+            "@id": "#author_0",
+            "@type": "Person",
+            "affiliation": "Institut Teknologi Del",
+            "email": "legobatman201003@gmail.com",
+            "name": "Yizreel Schwartz Sipahutar"
+        },
+        {
+            "@id": "#ChameleonJupyterLab",
+            "@type": "SoftwareApplication",
+            "name": "Chameleon JupyterLab",
+            "trovi_arguments": "{}",
+            "trovi_type": "jupyterhub",
+            "url": "https://jupyter.chameleoncloud.org/"
+        }
+    ]
+}
