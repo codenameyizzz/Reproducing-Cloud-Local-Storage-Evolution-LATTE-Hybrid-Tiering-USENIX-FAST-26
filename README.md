@@ -89,6 +89,12 @@ To address this, our research proposal introduces **Q-LATTE**:
 3. **Asymmetric S3-FIFO Eviction:**  
    Prioritizes evicting bulk sequential segments to cloud storage while pinning small, random blocks in local flash to maximize read hit rates.
 
+<p align="center">
+  <img src="docs/images/multitenant_isolation.png" alt="Multi-Tenant Tail Latency Isolation (Q-LATTE vs LATTE)" width="92%">
+  <br>
+  <em>Figure: Evaluation of Multi-Tenant QoS Isolation: (a) Latency distribution under adversarial streaming write burst; (b) Comparison of P99.9 tail latency demonstrating a 70.7% tail reduction via T-BFAC.</em>
+</p>
+
 ---
 
 ## 5. Running on Chameleon Cloud & Trovi
@@ -135,7 +141,29 @@ sudo apt-get update && sudo apt-get install -y fio libaio-dev jq
 fio trovi_artifact/scripts/fio_workloads.fio --output=results.json --output-format=json
 ```
 
-### Key Performance Summary (FAST '26 vs. Q-LATTE)
+### 7.1 Microbenchmark Performance Curves (FAST '26 Figures 11, 12, & 13)
+
+<p align="center">
+  <img src="docs/images/microbenchmarks_fig11_13.png" alt="Read Microbenchmarks across Queue Depths" width="98%">
+  <br>
+  <em>Figure 1: Reproduction of FAST '26 Figures 11 & 13(a) across Queue Depths (8 to 128): (a) 4KB Random Read Average Latency; (b) 4KB Random Read P99.9 Tail Latency; (c) 4KB Random Read IOPS.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/microbenchmarks_fig12_13b.png" alt="Write Path & Garbage Collection Impacts" width="88%">
+  <br>
+  <em>Figure 2: Reproduction of FAST '26 Figures 12 & 13(b): (a) 4KB Random Write P99.9 Tail Latency; (b) 4KB Random Write IOPS under SSD internal Garbage Collection (GC) activation.</em>
+</p>
+
+### 7.2 Cache Hit Rate Dynamics (FAST '26 Figure 17)
+
+<p align="center">
+  <img src="docs/images/cache_hitrate_fig17.png" alt="Read Throughput under Varying Cache Hit Rates" width="70%">
+  <br>
+  <em>Figure 3: Reproduction of FAST '26 Figure 17: Read throughput across varying cache hit rates (0% to 100%), demonstrating the dual-tier bandwidth peak of 8.9 GB/s at a 75% hit rate.</em>
+</p>
+
+### 7.3 Key Performance Summary (FAST '26 vs. Q-LATTE)
 
 | Architecture | Max 4KB Read IOPS | Max 4KB Write IOPS (w/ GC) | Read Throughput | P99.9 Tail Latency Under Burst | Relative TCO |
 | :--- | :---: | :---: | :---: | :---: | :---: |
