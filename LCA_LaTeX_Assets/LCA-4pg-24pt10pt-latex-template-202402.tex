@@ -12,7 +12,10 @@
 \usepackage{microtype}
 \usepackage{xcolor}
 
-% Configure graphics path to find images in the current folder
+% Ensure URLs break gracefully across columns without overflowing
+\def\UrlBreaks{\do\/\do\-\do\.\do\_}
+
+% Configure graphics path
 \graphicspath{{./}{./docs/images/}}
 
 \hypersetup{
@@ -27,8 +30,7 @@
 \title{Q-LATTE: QoS-Aware and Workload-Adaptive Local-Cloud Hybrid Storage for Multi-Tenant Cloud Instances}
 
 \author{Yizreel~Schwartz~Sipahutar%
-\thanks{Yizreel Schwartz Sipahutar (ORCID: \href{https://orcid.org/0009-0002-1625-0971}{0009-0002-1625-0971}) is with the Department of Informatics, Institut Teknologi Del, Laguboti, North Sumatra 22381, Indonesia (e-mail: \href{mailto:yizreelschwartz180304@gmail.com}{yizreelschwartz180304@gmail.com}).}%
-\thanks{Open-source code, scripts, and Chameleon Cloud Trovi artifacts are available at: \url{https://github.com/codenameyizzz/Reproducing-Cloud-Local-Storage-Evolution-LATTE-Hybrid-Tiering-USENIX-FAST-26}.}%
+\thanks{Y. S. Sipahutar is with the Department of Informatics, Institut Teknologi Del, Laguboti, North Sumatra 22381, Indonesia (e-mail: yizreelschwartz180304@gmail.com, ORCID: 0009-0002-1625-0971).}%
 }
 
 \markboth{IEEE Computer Architecture Letters,~Vol.~XX, No.~X,~2026}%
@@ -37,7 +39,7 @@
 \maketitle
 
 \begin{abstract}
-Cloud local storage has evolved through three hardware paradigms: host software polling (ESPRESSO), ASIC hardware offloading (DOPPIO), and ASIC/SoC co-design (RISTRETTO). The state-of-the-art hybrid architecture (LATTE, USENIX FAST '26) pairs high-performance local flash with Elastic Block Store (EBS) via an open-source Cloud Storage Acceleration Layer (CSAL) and a Linear-SVM classifier. However, in shared multi-tenant deployments, unthrottled write bursts trigger severe Quality-of-Service (QoS) degradation, inducing up to $3.8\times$ tail-latency spikes at P99.9. Furthermore, single-tenant linear dispatchers fail to detect dynamic workload phase transitions. We propose \textbf{Q-LATTE}, an open-source, QoS-aware hybrid storage architecture featuring: (1) a lock-free Token-Bucket Fair-Share Admission Controller (T-BFAC) integrated directly into the SPDK polling loop, (2) a Two-Tier Phase-Aware Dispatcher (TPA) coupling sub-40ns spatial heuristics with online learning, and (3) an Asymmetric Eviction Policy prioritizing bulk cloud writebacks. Evaluated on a commodity NVMe testbed replicating Alibaba Cloud's production environment, Q-LATTE eliminates multi-tenant queue blocking, curbing P99.9 write tail latency by $70.7\%$ ($345\,\mu\text{s}$ vs. $1,180\,\mu\text{s}$) while boosting MySQL sysbench throughput by $24.6\%$.
+Cloud local storage has transitioned through three hardware generations: software polling (ESPRESSO), ASIC hardware offloading (DOPPIO), and ASIC/SoC co-design (RISTRETTO). The state-of-the-art hybrid architecture (LATTE, USENIX FAST '26) pairs fast local flash with Elastic Block Store (EBS) via an open-source Cloud Storage Acceleration Layer (CSAL) and a Linear-SVM classifier. However, in shared multi-tenant deployments, unthrottled write bursts trigger severe Quality-of-Service (QoS) degradation, inducing up to $3.8\times$ tail-latency spikes at P99.9. Furthermore, single-tenant linear dispatchers fail to detect dynamic workload phase shifts. We propose \textbf{Q-LATTE}, an open-source, QoS-aware hybrid storage architecture featuring: (1) a lock-free Token-Bucket Fair-Share Admission Controller (T-BFAC) inside the SPDK polling loop, (2) a Two-Tier Phase-Aware Dispatcher (TPA) coupling sub-40ns spatial heuristics with online learning, and (3) an Asymmetric Eviction Policy prioritizing bulk cloud writebacks. Evaluated on a commodity NVMe testbed replicating Alibaba Cloud's production environment, Q-LATTE eliminates queue head-of-line blocking, reducing P99.9 write tail latency by $70.7\%$ ($345\,\mu\text{s}$ vs. $1,180\,\mu\text{s}$) while boosting MySQL throughput by $24.6\%$.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -45,57 +47,57 @@ Cloud storage, solid-state drives, Quality of Service, storage tiering, NVMe-oF,
 \end{IEEEkeywords}
 
 \section{Introduction}
-\IEEEPARstart{H}{igh-performance} cloud infrastructures increasingly rely on Non-Volatile Memory Express (NVMe) solid-state drives (SSDs) to serve data-intensive workloads, including Large Language Model (LLM) serving, graph analytics, and transactional databases~\cite{yang2026here, zhang2024ebs}. In ephemeral cloud architectures, physical NVMe SSDs are co-located directly within compute hosts and presented to guest instances via hypervisor virtualization or hardware SR-IOV pass-through~\cite{bjorling2021zns, spdk2025}.
+\IEEEPARstart{H}{igh-performance} cloud infrastructures increasingly rely on Non-Volatile Memory Express (NVMe) solid-state drives (SSDs) to serve data-intensive workloads such as Large Language Model (LLM) serving, real-time analytics, and transactional databases~\cite{yang2026here, zhang2024ebs}. In ephemeral cloud architectures, physical NVMe SSDs reside directly within compute hosts and are exposed to guest instances via virtualization or hardware pass-through~\cite{bjorling2021zns, spdk2025}.
 
-As documented in Alibaba Cloud's decade-long field study at USENIX FAST '26~\cite{yang2026here}, local storage virtualization has transitioned across three major technological generations:
+As documented in Alibaba Cloud's landmark field study at USENIX FAST '26~\cite{yang2026here}, local flash virtualization has transitioned across three hardware generations:
 \begin{enumerate}
-    \item \textbf{ESPRESSO (2017):} A user-space polling architecture built atop SPDK~\cite{spdk2025}, eliminating kernel context switches but requiring dedicated host CPU cores ($6$ cores per $12$ SSDs).
-    \item \textbf{DOPPIO (2019):} An ASIC-driven Data Processing Unit (DPU) offloading NVMe virtualization, freeing host cores but bottlenecked by fixed ASIC logic and an aggregate $1.3$M IOPS ceiling.
+    \item \textbf{ESPRESSO (2017):} A user-space polling stack based on SPDK~\cite{spdk2025}, eliminating kernel context switches but monopolizing host CPU cores ($6$ cores per $12$ SSDs).
+    \item \textbf{DOPPIO (2019):} An ASIC Data Processing Unit (DPU) offloading NVMe virtualization, relieving host cores but bounded by a rigid $1.3$M IOPS ceiling.
     \item \textbf{RISTRETTO (2023):} An ASIC plus ARM Cortex-A72 SoC platform delivering $7.2$M IOPS and sub-$80\,\mu\text{s}$ latency while supporting host LVM and zoned namespaces~\cite{bjorling2021zns}.
 \end{enumerate}
 
-Despite delivering near-bare-metal speeds, raw physical SSDs suffer from three fundamental limitations~\cite{yang2026here}: \textbf{LDL\_1 (Weak Availability)}, where drive failures require hours of manual instance evacuation; \textbf{LDL\_2 (Inflexible Elasticity)}, where volume size is permanently bounded by physical drive capacity; and \textbf{LDL\_3 (Stranded Resources)}, where server nodes must be over-provisioned with 8--12 SSDs, stranding compute when storage is underutilized.
+Despite delivering near-bare-metal speeds, raw physical SSDs exhibit three inherent limitations~\cite{yang2026here}: \textbf{LDL\_1 (Weak Availability)}, where drive failures require hours of manual migration; \textbf{LDL\_2 (Inflexible Elasticity)}, where disk size is permanently bounded by physical drive capacity; and \textbf{LDL\_3 (Stranded Resources)}, where server nodes must be over-provisioned with excess SSDs to guarantee compute-to-storage ratios.
 
-To overcome these physical bottlenecks, Alibaba and Solidigm proposed \textbf{LATTE}~\cite{yang2026here}, a hybrid tiered storage architecture built upon the open-source Cloud Storage Acceleration Layer (CSAL)~\cite{zhou2024csal}. LATTE uses fast local flash as an ephemeral write-absorption buffer and caching tier, backed by disaggregated Elastic Block Store (EBS) pools. I/O routing is guided by an online Linear-SVM classifier, and cache eviction is managed via S3-FIFO~\cite{yang2023fifo}.
+To overcome these constraints, Alibaba and Solidigm introduced \textbf{LATTE}~\cite{yang2026here}, a hybrid tiered storage architecture built upon the open-source Cloud Storage Acceleration Layer (CSAL)~\cite{zhou2024csal}. LATTE uses fast local flash as an ephemeral write-absorption buffer and caching tier, backed by disaggregated Elastic Block Store (EBS) pools. I/O routing is guided by an online Linear-SVM classifier, and cache eviction is managed via S3-FIFO~\cite{yang2023fifo}.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{multitenant_isolation.png}
-\caption{Adversarial multi-tenant tail-latency evaluation: (a) Unregulated baseline suffering severe P99.9 tail latency inflation ($1,180\,\mu\text{s}$) due to queue monopolization; (b) Q-LATTE with T-BFAC maintaining sub-$350\,\mu\text{s}$ tail bounds.}
+\caption{Multi-tenant tail latency evaluation under adversarial load: (a) Unregulated baseline suffering severe P99.9 tail latency inflation ($1,180\,\mu\text{s}$); (b) Q-LATTE with T-BFAC maintaining sub-$350\,\mu\text{s}$ tail bounds.}
 \label{fig:arch}
 \end{figure}
 
 \subsection{The Multi-Tenant QoS Challenge}
-While LATTE successfully amortizes storage costs, our empirical analysis reveals three critical unresolved bottlenecks:
+While LATTE successfully balances storage costs, our empirical analysis reveals three critical unresolved bottlenecks:
 \begin{itemize}
-    \item \textbf{Multi-Tenant Interference:} When multiple guest instances share a single local flash tier, unthrottled streaming writes monopolize shared PCIe queues, inflating P99.9 tail latency by up to $3.8\times$ for latency-sensitive tenants~\cite{dean2013tail, li2022qos}.
+    \item \textbf{Inter-Tenant Interference:} When multiple guest instances share a single local flash tier, unthrottled streaming writes monopolize shared PCIe queues, inflating P99.9 tail latency by up to $3.8\times$ for latency-sensitive tenants~\cite{dean2013tail}.
     \item \textbf{Workload-Blind Dispatching:} LATTE's linear SVM evaluates only raw latency and device queue depth over a 5-I/O sliding window, failing to capture workload phase shifts (e.g., KV-cache prefill vs. decode in LLM serving~\cite{wong2024baleen}).
-    \item \textbf{Reproducibility Barriers:} LATTE relies on proprietary RISTRETTO silicon and proprietary Pangu EBS fabrics~\cite{zhang2024ebs}, preventing direct academic verification on commodity clusters.
+    \item \textbf{Reproducibility Barriers:} LATTE relies on proprietary RISTRETTO silicon and proprietary Pangu EBS fabrics~\cite{zhang2024ebs}, preventing independent academic verification.
 \end{itemize}
 
 This letter presents \textbf{Q-LATTE}, addressing these gaps via a lock-free token-bucket admission engine, a two-tier spatial dispatcher, and an open commodity reproducibility framework.
 
-\begin{table*}[t]
+\begin{table}[t]
 \centering
-\caption{Systematic Architectural Comparison Across Cloud Local Storage Generations~\cite{yang2026here}}
+\caption{Comparison Across Cloud Local Storage Generations~\cite{yang2026here}}
 \label{tab:comparison}
-\resizebox{\textwidth}{!}{%
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Metric / Feature} & \textbf{ESPRESSO (2017)} & \textbf{DOPPIO (2019)} & \textbf{RISTRETTO (2023)} & \textbf{Q-LATTE (Proposed)} \\
+\textbf{Feature} & \textbf{ESPRESSO} & \textbf{DOPPIO} & \textbf{RISTRETTO} & \textbf{Q-LATTE} \\
 \midrule
-Primary Architecture & SPDK Polling (Host CPU) & Commercial ASIC DPU & ASIC + ARM SoC Co-design & Hybrid Local-Cloud (CSAL + SPDK) \\
-Host CPU Overhead & High (6 cores / 12 SSDs) & Zero (Offloaded) & Zero (Offloaded) & Near-Zero (Dedicated SPDK Thread) \\
-Bare-Metal Instance Support & No & Yes & Yes & Yes \\
-Maximum IOPS / Virtual Disk & 480K & 500K & 900K & 810K--900K \\
-High Availability (LDL\_1) & Weak (Manual Evacuation) & Weak (Manual Evacuation) & Weak (Manual Evacuation) & \textbf{Strong (Disaggregated EBS Backend)} \\
-Volume Elasticity (LDL\_2) & Fixed Physical Capacity & Fixed Physical Capacity & Fixed Physical Capacity & \textbf{Dynamic Remote Elastic Pooling} \\
-Multi-Tenant QoS Isolation & None (Static Partition) & Static Hardware VF & Static Hardware VF & \textbf{Lock-Free Token-Bucket Fair Share} \\
-Open Commodity Reproducibility & High (Software Stack) & Low (Proprietary ASIC) & Low (Custom ASIC/SoC Board) & \textbf{100\% Open-Source (x86 + NVMe-oF)} \\
+Primary Engine & SPDK Polling & ASIC DPU & ASIC + SoC & Hybrid CSAL \\
+Host CPU Cost & High (6 cores) & Zero & Zero & Near-Zero \\
+Bare-Metal & No & Yes & Yes & Yes \\
+Max IOPS/VD & 480K & 500K & 900K & 810K--900K \\
+Availability & Weak & Weak & Weak & \textbf{Strong (EBS)} \\
+Elasticity & Fixed & Fixed & Fixed & \textbf{Dynamic Pool} \\
+Multi-Tenant QoS & None & Static VF & Static VF & \textbf{Lock-Free TB} \\
+Commodity Testbed & High & Low (Custom) & Low (Custom) & \textbf{100\% Open} \\
 \bottomrule
 \end{tabular}%
 }
-\end{table*}
+\end{table}
 
 \section{The Q-LATTE Architecture}
 
@@ -105,7 +107,7 @@ When tenant $i$ submits an I/O request of size $S$, T-BFAC atomically evaluates 
 \begin{equation}
 T_i \leftarrow \min\left(B_i, \, T_i + R_i \cdot \Delta t\right)
 \end{equation}
-If $T_i \ge S$, the request is admitted directly to the local NVMe flash buffer. If $T_i < S$, rather than blocking the caller, T-BFAC executes \textit{Graceful Cloud Diversion}: the write is synchronously routed to the NVMe-oF remote EBS target, preserving shared PCIe queue availability for latency-critical tenants. Utilizing atomic fetch-and-add operations, T-BFAC introduces less than $12\,\text{ns}$ of overhead per request.
+If $T_i \ge S$, the request is admitted directly to the local NVMe flash buffer. If $T_i < S$, rather than blocking execution, T-BFAC executes \textit{Graceful Cloud Diversion}: the write is synchronously routed to the NVMe-oF remote EBS target, preserving shared PCIe queues for latency-critical tenants. Utilizing atomic fetch-and-add operations, T-BFAC introduces less than $12\,\text{ns}$ of overhead per request.
 
 \subsection{Two-Tier Phase-Aware Dispatching (TPA)}
 Rather than routing all I/O via a single machine learning model, Q-LATTE decouples request routing into two complementary tiers:
@@ -117,23 +119,23 @@ Rather than routing all I/O via a single machine learning model, Q-LATTE decoupl
 \subsection{Asymmetric S3-FIFO Eviction}
 Standard S3-FIFO~\cite{yang2023fifo} partitions cache entries into Small ($S$), Main ($M$), and Ghost ($G$) queues. In hybrid cloud architectures, evicting dirty blocks to remote EBS incurs network bandwidth penalties. Q-LATTE modifies S3-FIFO by introducing an asymmetric eviction cost: contiguous sequential dirty extents are grouped and asynchronously flushed to EBS via high-throughput RDMA, whereas isolated random dirty blocks are retained in local flash to maximize hit rates for latency-sensitive reads.
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.98\textwidth]{microbenchmarks_fig11_13.png}
-\caption{Microbenchmark evaluation replicating FAST '26 across varying queue depths: (a) 4KB Random Read IOPS scaling; (b) 4KB Random Read Average Latency ($\mu\text{s}$); (c) 128KB Sequential Read Throughput (GB/s) comparing pure local flash, remote EBS, and Q-LATTE.}
-\label{fig:microbenchmarks}
-\end{figure*}
-
 \section{Experimental Evaluation}
 
 \subsection{Testbed Implementation}
 To provide an open alternative to proprietary hardware, we constructed a commodity testbed mirroring the FAST '26 environment:
 \begin{itemize}
-    \item \textbf{Compute Host:} Dual AMD EPYC 7763 (128 vCPUs), 256GB DDR4 RAM, Ubuntu 22.04 LTS (Linux kernel 5.15).
-    \item \textbf{Local Storage Tier:} 3.84TB Samsung PM9A3 PCIe 4.0 NVMe SSD ($6.8\,\text{GB/s}$ sequential read, $950\text{K}$ random read IOPS).
-    \item \textbf{Disaggregated EBS Tier:} Remote target server connected via Mellanox ConnectX-6 100GbE NIC using Linux NVMe-oF over TCP, with an emulated baseline latency of $120\,\mu\text{s}$.
-    \item \textbf{Software Stack:} SPDK v23.05, CSAL hybrid tiering engine, and FIO v3.28 benchmark harness~\cite{fio2025}.
+    \item \textbf{Host:} Dual AMD EPYC 7763 (128 vCPUs), 256GB RAM, Ubuntu 22.04 LTS (Linux kernel 5.15).
+    \item \textbf{Local Storage:} 3.84TB Samsung PM9A3 PCIe 4.0 NVMe SSD ($6.8\,\text{GB/s}$ sequential read, $950\text{K}$ random read IOPS).
+    \item \textbf{Remote EBS:} Disaggregated storage target over Mellanox ConnectX-6 100GbE NIC using Linux NVMe-oF over TCP ($120\,\mu\text{s}$ baseline latency).
+    \item \textbf{Software Stack:} SPDK v23.05, CSAL hybrid tiering engine, and FIO benchmark harness~\cite{spdk2025}.
 \end{itemize}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.98\textwidth]{microbenchmarks_fig11_13.png}
+\caption{Empirical microbenchmark results replicating FAST '26 across varying queue depths: (a) 4KB Random Read IOPS scaling; (b) 4KB Random Read Average Latency ($\mu\text{s}$); (c) 128KB Sequential Read Throughput (GB/s) comparing pure local flash, remote EBS, and Q-LATTE.}
+\label{fig:microbenchmarks}
+\end{figure*}
 
 \subsection{Microbenchmark Performance}
 Fig.~\ref{fig:microbenchmarks} demonstrates read scaling across queue depths from 1 to 128. Q-LATTE matches physical NVMe performance up to $QD=32$, delivering $810\text{K}$ 4KB read IOPS and saturating at $6.7\,\text{GB/s}$ bandwidth.
@@ -142,15 +144,15 @@ Fig.~\ref{fig:gc_eval} illustrates write path behavior under steady-state intern
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\columnwidth]{microbenchmarks_fig12_13b.png}
-\caption{Write path performance and SSD internal Garbage Collection (GC) behavior: (a) 4KB Random Write P99.9 Tail Latency; (b) Sustained Write IOPS under active SSD background garbage collection.}
+\includegraphics[width=\columnwidth]{microbenchmarks_fig12_13b.png}
+\caption{Write path performance and SSD Garbage Collection (GC) behavior: (a) 4KB Random Write P99.9 Tail Latency; (b) Sustained Write IOPS under active SSD background garbage collection.}
 \label{fig:gc_eval}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\columnwidth]{cache_hitrate_fig17.png}
-\caption{Throughput evaluation across varying local cache hit rates ($0\%$ to $100\%$). Notice the dual-bandwidth peak of $8.9\,\text{GB/s}$ at $75\%$ local cache hit rate, successfully replicating FAST '26 Figure 17.}
+\includegraphics[width=\columnwidth]{cache_hitrate_fig17.png}
+\caption{Aggregate throughput across varying local cache hit rates ($0\%$ to $100\%$). Notice the dual-bandwidth peak of $8.9\,\text{GB/s}$ at $75\%$ local cache hit rate, successfully replicating FAST '26 Figure 17.}
 \label{fig:hitrate_eval}
 \end{figure}
 
@@ -181,16 +183,18 @@ As shown in Table~\ref{tab:results} and Fig.~\ref{fig:arch}, baseline LATTE suff
 
 Under macrobenchmark evaluation with MySQL 8.0 Sysbench OLTP (10 tables, 10 million rows, 24GB footprint), Q-LATTE achieves $23,800$ Queries Per Second (QPS), outperforming baseline LATTE by $24.6\%$ and pure EBS by $142\%$.
 
-\section{Conclusion}
-This letter addresses critical QoS interference and reproducibility challenges in cloud local storage. By coupling lock-free token-bucket admission, two-tier phase-aware dispatching, and asymmetric S3-FIFO caching, Q-LATTE eliminates multi-tenant tail latency degradation while preserving bare-metal flash throughput. Furthermore, our open commodity blueprint enables the systems community to replicate and extend hyperscale storage architectures.
+\section{Conclusion and Artifact Availability}
+This letter addresses critical QoS interference and reproducibility challenges in cloud local storage. By coupling lock-free token-bucket admission, two-tier phase-aware dispatching, and asymmetric S3-FIFO caching, Q-LATTE eliminates multi-tenant tail latency degradation while preserving bare-metal flash throughput. Furthermore, our open commodity blueprint enables the systems community to replicate and extend hyperscale storage architectures. 
+
+The reproduction notebook and benchmark scripts are openly accessible at: \url{https://github.com/codenameyizzz/Reproducing-Cloud-Local-Storage-Evolution-LATTE-Hybrid-Tiering-USENIX-FAST-26}.
 
 \bibliographystyle{IEEEtran}
-\begin{thebibliography}{18}
+\begin{thebibliography}{10}
 
 \bibitem{yang2026here}
 L.~Yang, Y.~Zhou, G.~Zeng, L.~Zhang, S.~Zhang, R.~Wu, C.~Sun, S.~Luo, W.~Li, K.~Niu, \emph{et~al.},
 ``Here, there and everywhere: The past, the present and the future of local storage in cloud,''
-in \emph{Proc. 24th USENIX Conf. File Storage Technol. (FAST '26)}, Santa Clara, CA, USA, Feb. 2026, pp. 1--18.
+in \emph{Proc. 24th USENIX Conf. File Storage Technol. (FAST '26)}, Feb. 2026, pp. 1--18.
 
 \bibitem{zhang2024ebs}
 W.~Zhang, E.~Xu, Q.~Wang, X.~Zhang, Y.~Gu, Z.~Lu, T.~Ouyang, G.~Dai, W.~Peng, \emph{et~al.},
@@ -217,11 +221,6 @@ M.~Hao, L.~Toksoz, N.~Li, E.~E. Halim, H.~Hoffmann, and H.~S. Gunawi,
 ``LinnOS: Predictability on unpredictable flash storage with a light neural network,''
 in \emph{Proc. 14th USENIX Symp. Oper. Syst. Des. Implement. (OSDI '20)}, 2020, pp. 173--190.
 
-\bibitem{kurniawan2025heimdall}
-D.~H. Kurniawan, R.~A. Putri, P.~Qin, K.~S. Zulkifli, R.~A.~O. Sinurat, J.~Bhimani, S.~Madireddy, A.~I. Kistijantoro, and H.~S. Gunawi,
-``Heimdall: Optimizing storage I/O admission with extensive machine learning pipeline,''
-in \emph{Proc. 20th Eur. Conf. Comput. Syst. (EuroSys '25)}, 2025, pp. 1109--1125.
-
 \bibitem{hwang2021rearchitecting}
 J.~Hwang, M.~Vuppalapati, S.~Peter, and R.~Agarwal,
 ``Rearchitecting Linux storage stack for $\mu$s latency and high throughput,''
@@ -232,50 +231,15 @@ M.~Bj{\o}rling, A.~Gonzalez, and P.~Bonnet,
 ``ZNS: Avoiding the block interface tax for flash-based SSDs,''
 in \emph{Proc. USENIX Annu. Tech. Conf. (ATC '21)}, 2021, pp. 615--629.
 
-\bibitem{eisenman2019flashield}
-A.~Eisenman, A.~Cidon, E.~Pergament, O.~Haimovich, R.~Stutsman, M.~Alizadeh, and S.~Katti,
-``Flashield: A hybrid key-value cache that controls flash write amplification,''
-in \emph{Proc. 16th USENIX Symp. Networked Syst. Des. Implement. (NSDI '19)}, 2019, pp. 65--78.
-
-\bibitem{zheng2019ziggurat}
-S.~Zheng, M.~Hoseinzadeh, and S.~Swanson,
-``Ziggurat: A tiered file system for non-volatile main memories and disks,''
-in \emph{Proc. 17th USENIX Conf. File Storage Technol. (FAST '19)}, 2019, pp. 207--219.
-
-\bibitem{zhong2022xrp}
-Y.~Zhong, H.~Li, Y.~J. Wu, I.~Zarkadas, J.~Tao, E.~Mesterhazy, M.~Makris, J.~Yang, A.~Tai, and R.~Stutsman,
-``XRP: In-kernel storage functions with eBPF,''
-in \emph{Proc. 16th USENIX Symp. Oper. Syst. Des. Implement. (OSDI '22)}, 2022, pp. 375--391.
-
 \bibitem{dean2013tail}
 J.~Dean and L.~A. Barroso,
 ``The tail at scale,''
 \emph{Commun. ACM}, vol.~56, no.~2, pp. 74--80, 2013.
 
-\bibitem{li2022qos}
-C.~Li, S.~Patil, and G.~Shen,
-``QoS-aware resource virtualization and scheduling for multi-tenant cloud storage,''
-\emph{IEEE Trans. Comput.}, vol.~71, no.~8, pp. 1823--1836, 2022.
-
-\bibitem{chen2023tail}
-X.~Chen, Y.~Wang, and D.~Feng,
-``Mitigating tail latency in multi-tenant cloud storage systems through adaptive token allocation,''
-\emph{IEEE Trans. Parallel Distrib. Syst.}, vol.~34, no.~5, pp. 1542--1555, 2023.
-
-\bibitem{fan2008liblinear}
-R.-E. Fan, K.-W. Chang, C.-J. Hsieh, X.-R. Wang, and C.-J. Lin,
-``LIBLINEAR: A library for large linear classification,''
-\emph{J. Mach. Learn. Res.}, vol.~9, pp. 1871--1874, 2008.
-
 \bibitem{spdk2025}
 Storage Performance Development Kit (SPDK),
 ``SPDK architecture and NVMe driver specifications,''
 \url{https://spdk.io/}, 2025.
-
-\bibitem{fio2025}
-J.~Axboe,
-``Flexible I/O Tester (FIO),''
-\url{https://github.com/axboe/fio}, 2025.
 
 \end{thebibliography}
 
